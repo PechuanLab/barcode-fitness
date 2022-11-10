@@ -3,7 +3,9 @@ using StatsBase
 using Distributions
 using Distances
 using KernelDensity
-#include("./rejection_sampler.jl")
+include("rejection_sampler.jl")
+include("evosim_BP_sampler.jl")
+include("gillespie_sampler.jl")
 
 ## Getters/setters
 # (!!!) reset_pop functions- required for simulation. The reset_pop function used is determined by the Population type and requires 3 inputs: the Population, init_N (initial population sizes), and all additional parameters in params to set. See example.
@@ -13,7 +15,7 @@ function get_total_pop_size(pop::Population)
 end
 
 function get_num_BCs(pop::Population)
-	return(length(pop.N))
+	return length(pop.N)
 end
 
 function get_freq_BCs(pop::Population, total_cells::Int64)
@@ -24,6 +26,52 @@ function reset_pop(pop::PureBirth, init_N::Vector{Int64}, params_to_set)
 	pop.N = init_N
 	pop.birth_rates = params_to_set.birth_rates
 	@assert length(pop.N) == length(pop.birth_rates)
+	return nothing
+end
+
+function reset_pop(pop::BirthDeathSample, init_N::Vector{Int64}, params_to_set)
+	pop.N = init_N
+	pop.growth_rates = params_to_set.growth_rates
+	pop.variances = params_to_set.variances
+	pop.samples = params_to_set.samples
+	@assert length(pop.N) == length(pop.growth_rates)
+	@assert length(pop.N) == length(pop.variances)
+	return nothing
+end
+
+function reset_pop(pop::BirthDeathEvoSim, init_N::Vector{Int64}, params_to_set)
+	pop.N = init_N
+	pop.birth_rates = params_to_set.birth_rates
+	pop.death_rates = params_to_set.death_rates
+	@assert length(pop.N) == length(pop.birth_rates)
+	@assert length(pop.N) == length(pop.death_rates)
+	return nothing
+end
+
+function reset_pop(pop::BirthDeathGillespie, init_N::Vector{Int64}, params_to_set)
+	pop.N = init_N
+	pop.birth_rates = params_to_set.birth_rates
+	pop.death_rates = params_to_set.death_rates
+	@assert length(pop.N) == length(pop.birth_rates)
+	@assert length(pop.N) == length(pop.death_rates)
+	return nothing
+end
+
+function reset_pop(pop::BirthDeathLazyHybrid, init_N::Vector{Int64}, params_to_set)
+	pop.N = init_N
+	pop.birth_rates = params_to_set.birth_rates
+	pop.death_rates = params_to_set.death_rates
+	@assert length(pop.N) == length(pop.birth_rates)
+	@assert length(pop.N) == length(pop.death_rates)
+	return nothing
+end
+
+function reset_pop(pop::BirthDeathNegBin, init_N::Vector{Int64}, params_to_set)
+	pop.N = init_N
+	pop.birth_rates = params_to_set.birth_rates
+	pop.death_rates = params_to_set.death_rates
+	@assert length(pop.N) == length(pop.birth_rates)
+	@assert length(pop.N) == length(pop.death_rates)
 	return nothing
 end
 
@@ -78,22 +126,23 @@ function poisson_counts(pop::Population, sample_size::Int64, growth_num::Int64)
 	return broadcast(sample_poisson, lambda_val)
 end
 
+
 function sample_bd_approx(n_init::Int64, growth_rate::Float64, variance::Float64, sample_ratio::Float64)
 	mean_growth = growth_rate*sample_ratio*n_init
 	function bd_approx_pdf(n_final::Float64)
 		to_return = sqrt(sqrt(mean_growth)/(4*pi*variance*n_final^(3/2)))
 		to_return = to_return*exp(-((sqrt(n_final)-sqrt(mean_growth))^2)/variance)
-		return(to_return)
+		return to_return
 	end
 	val_at_mean = bd_approx_pdf(mean_growth)
 
 	function to_rejection(n_final::Float64)
-		return(bd_approx_pdf(n_final) * exp(2)/val_at_mean)
+		return (bd_approx_pdf(n_final) * exp(2)/val_at_mean)
 	end
 
 	support = (1.0, Inf)
 	sample_params = get_sample_params(to_rejection)
-	return sample_growth(to_rejection, sample_params, 1)
+	return sample_growth(to_rejection, sample_params, 1)[1]
 end
 
 ## Growth functions
@@ -110,11 +159,39 @@ function pure_birth_growth(pop::PureBirth, start_time::Int64, end_time::Int64)
 	return nothing
 end
 
-function bd_approx_growth(pop::BirthDeathSample, start_time::Float64, end_time::Float64)
+function bd_approx_growth(pop::BirthDeathSample, start_time::Int64, end_time::Int64)
 	time_passed = end_time - start_time
 	sample_ratio = pop.samples[end_time]/pop.samples[start_time]
 
-	pop.N = broadcast(sample_bd_approx, pop.N, pop.growth_rates, pop.variances, sample_ratio)
+	pop.N = round.(broadcast(sample_bd_approx, pop.N, pop.growth_rates, pop.variances, sample_ratio))
+	return nothing
+end
+
+function bd_evosim_growth(pop::BirthDeathEvoSim, start_time::Int64, end_time::Int64)
+	time_passed = convert(Float64, end_time - start_time)
+
+	pop.N = round.(broadcast(sample_evosim_nomut, pop.N, pop.birth_rates, pop.death_rates, time_passed))
+	return nothing
+end
+
+function bd_gillespie_growth(pop::BirthDeathGillespie, start_time::Int64, end_time::Int64)
+	time_passed = convert(Float64, end_time - start_time)
+
+	pop.N = round.(broadcast(sample_gillespie_nomut, pop.N, pop.birth_rates, pop.death_rates, time_passed))
+	return nothing
+end
+
+function bd_lazyhybrid_growth(pop::BirthDeathLazyHybrid, start_time::Int64, end_time::Int64)
+	time_passed = convert(Float64, end_time - start_time)
+
+	pop.N = round.(broadcast(sample_lazyhybrid_nomut, pop.N, pop.birth_rates, pop.death_rates, time_passed))
+	return nothing
+end
+
+function bd_NegBin_growth(pop::BirthDeathNegBin, start_time::Int64, end_time::Int64)
+	time_passed = convert(Float64, end_time - start_time)
+
+	pop.N = round.(broadcast(sample_NegBinBD_nomut, pop.N, pop.birth_rates, pop.death_rates, time_passed))
 	return nothing
 end
 

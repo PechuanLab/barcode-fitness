@@ -2,12 +2,12 @@ using CSV
 using KissABC
 using DataFrames
 
-include("/Users/dve/Documents/Curtis_Lab/organoid_ECB/fitness_inference/BC_fit_types.jl")
-include("/Users/dve/Documents/Curtis_Lab/organoid_ECB/fitness_inference/BC_fit_sim_fns.jl")
+include("BC_fit_types.jl")
+include("BC_fit_sim_fns.jl")
 
 parent_dir = "/Users/dve/Documents/Curtis_Lab/organoid_ECB/ECB_input_data/"
-sample_name = "PC5_R3"
-out_file = string(parent_dir, "output/pure_birth_SMC/", sample_name, ".csv")
+sample_name = "PC1_R3"
+out_file = string(parent_dir, "output/smoothed_birth_SMC/", sample_name, ".csv")
 
 time_period = 14 # days between passages
 
@@ -15,7 +15,7 @@ time_period = 14 # days between passages
 BC_file = string(parent_dir, "trimmed_long_data/above_100/", sample_name, ".csv")
 BC_data = CSV.read(BC_file, DataFrame)
 #sampling_data = CSV.read(ARGS[2], DataFrame)
-sampling_file = string(parent_dir, "sampling_params/", sample_name, ".csv")
+sampling_file = string(parent_dir, "sampling_params/", sample_name, "_smoothed.csv")
 sampling_data = CSV.read(sampling_file, DataFrame)
 
 results_table = DataFrame(BC=Vector{Int64}(), time=Vector{Int64}(), MAP=Vector{Float64}(), lower_CI=Vector{Float64}(), upper_CI=Vector{Float64}())
