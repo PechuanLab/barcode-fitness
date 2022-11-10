@@ -4,7 +4,7 @@ using Distributions
 using Distances
 using KernelDensity
 include("rejection_sampler.jl")
-include("evosim_BP_sampler.jl")
+#include("evosim_BP_sampler.jl")
 include("gillespie_sampler.jl")
 
 ## Getters/setters
