@@ -5,7 +5,7 @@ using DataFrames
 include("BC_fit_types.jl")
 include("BC_fit_sim_fns.jl")
 
-function run_purebirth_adjtimes(BC_file::String, sampling_file::String, out_file::String, verbose::Bool=False)
+function run_purebirth_adjtimes(BC_file::String, sampling_file::String, out_file::String, verbose::Bool=False, prior_lim::Float64=0.0)
     BC_data = CSV.read(BC_file, DataFrame)
     sampling_data = CSV.read(sampling_file, DataFrame)
 
@@ -32,7 +32,11 @@ function run_purebirth_adjtimes(BC_file::String, sampling_file::String, out_file
 
         mean_growth = log(end_cells/start_cells)/(end_day-start_day)
 
-        prior = Uniform(0,mean_growth*3)
+        if prior_lim > 0.0
+            prior = Uniform(0,prior_lim)
+        else
+            prior = Uniform(0,mean_growth*3)
+        end
         pop_template = PureBirth([0], [0.0])
 
         end_sample = sampling_row[1, "sampled"]
@@ -56,7 +60,7 @@ function run_purebirth_adjtimes(BC_file::String, sampling_file::String, out_file
     return nothing
 end
 
-function run_sherlockBD_adjtimes(BC_file::String, sampling_file::String, out_file::String, verbose::Bool=False)
+function run_sherlockBD_adjtimes(BC_file::String, sampling_file::String, out_file::String, verbose::Bool=False, prior_lim::Float64=0.0)
     BC_data = CSV.read(BC_file, DataFrame)
     sampling_data = CSV.read(sampling_file, DataFrame)
 
@@ -109,7 +113,7 @@ function run_sherlockBD_adjtimes(BC_file::String, sampling_file::String, out_fil
     return nothing
 end
 
-function run_evosim_adjtimes(BC_file::String, sampling_file::String, out_file::String, death_rate::Float64, verbose::Bool=False)
+function run_evosim_adjtimes(BC_file::String, sampling_file::String, out_file::String, death_rate::Float64, verbose::Bool=False, prior_lim::Float64=0.0)
     BC_data = CSV.read(BC_file, DataFrame)
     sampling_data = CSV.read(sampling_file, DataFrame)
 
@@ -140,7 +144,11 @@ function run_evosim_adjtimes(BC_file::String, sampling_file::String, out_file::S
 
         mean_growth = log(end_cells/start_cells)/(end_day-start_day)
 
-        prior = Uniform(0,mean_growth*3)
+        if prior_lim > 0.0
+            prior = Uniform(0,prior_lim)
+        else
+            prior = Uniform(0,mean_growth*3)
+        end
         pop_template = BirthDeathEvoSim([0], [0.0], [0.0])
 
         end_sample = sampling_row[1, "sampled"]
@@ -167,7 +175,7 @@ function run_evosim_adjtimes(BC_file::String, sampling_file::String, out_file::S
     return nothing
 end
 
-function run_gillespie_adjtimes(BC_file::String, sampling_file::String, out_file::String, death_rate::Float64, verbose::Bool=False)
+function run_gillespie_adjtimes(BC_file::String, sampling_file::String, out_file::String, death_rate::Float64, verbose::Bool=False, prior_lim::Float64=0.0)
     BC_data = CSV.read(BC_file, DataFrame)
     sampling_data = CSV.read(sampling_file, DataFrame)
 
@@ -196,7 +204,11 @@ function run_gillespie_adjtimes(BC_file::String, sampling_file::String, out_file
 
         mean_growth = log(end_cells/start_cells)/(end_day-start_day)
 
-        prior = Uniform(0,mean_growth*3)
+        if prior_lim > 0.0
+            prior = Uniform(0,prior_lim)
+        else
+            prior = Uniform(0,mean_growth*3)
+        end
         pop_template = BirthDeathGillespie([0], [0.0], [0.0])
 
         end_sample = sampling_row[1, "sampled"]
@@ -220,7 +232,7 @@ function run_gillespie_adjtimes(BC_file::String, sampling_file::String, out_file
     return nothing
 end
 
-function run_lazyhybrid_adjtimes(BC_file::String, sampling_file::String, out_file::String, death_rate::Float64, verbose::Bool=False)
+function run_lazyhybrid_adjtimes(BC_file::String, sampling_file::String, out_file::String, death_rate::Float64, verbose::Bool=False, prior_lim::Float64=0.0)
     BC_data = CSV.read(BC_file, DataFrame)
     sampling_data = CSV.read(sampling_file, DataFrame)
 
@@ -249,7 +261,11 @@ function run_lazyhybrid_adjtimes(BC_file::String, sampling_file::String, out_fil
 
         mean_growth = log(end_cells/start_cells)/(end_day-start_day)
 
-        prior = Uniform(0,mean_growth*3)
+        if prior_lim > 0.0
+            prior = Uniform(0,prior_lim)
+        else
+            prior = Uniform(0,mean_growth*3)
+        end
         pop_template = BirthDeathLazyHybrid([0], [0.0], [0.0])
 
         end_sample = sampling_row[1, "sampled"]
@@ -273,7 +289,7 @@ function run_lazyhybrid_adjtimes(BC_file::String, sampling_file::String, out_fil
     return nothing
 end
 
-function run_NegBin_adjtimes(BC_file::String, sampling_file::String, out_file::String, death_rate::Float64, verbose::Bool=False)
+function run_NegBin_adjtimes(BC_file::String, sampling_file::String, out_file::String, death_rate::Float64, verbose::Bool=False, prior_lim::Float64=0.0)
     BC_data = CSV.read(BC_file, DataFrame)
     sampling_data = CSV.read(sampling_file, DataFrame)
 
@@ -302,7 +318,11 @@ function run_NegBin_adjtimes(BC_file::String, sampling_file::String, out_file::S
 
         mean_growth = log(end_cells/start_cells)/(end_day-start_day)
 
-        prior = Uniform(0,mean_growth*3)
+        if prior_lim > 0.0
+            prior = Uniform(0,prior_lim)
+        else
+            prior = Uniform(0,mean_growth*3)
+        end
         pop_template = BirthDeathNegBin([0], [0.0], [0.0])
 
         end_sample = sampling_row[1, "sampled"]
