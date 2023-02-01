@@ -50,6 +50,9 @@ function sample_lazyhybrid_nomut(init_N::Int64, b::Float64, d::Float64, end_time
 end
 
 function sample_NegBinBD_nomut(init_N::Int64, b::Float64, d::Float64, end_time::Float64)
+    if sum(init_N) == 0
+        return 0
+    end
     lambda = b - d
     alpha = (d*exp(lambda*end_time) - d)/(b*exp(lambda*end_time) - d)
     beta = (b*exp(lambda*end_time)-b)/(b*exp(lambda*end_time) - d)

@@ -1,8 +1,10 @@
-using DataFrames
-using StatsBase
+using DataFrames, LinearAlgebra
+using StatsBase, Statistics
 using Distributions
 using Distances
-using KernelDensity
+using KernelDensity, KernelDensityEstimate
+#using MultiKDE
+using Optim
 include("rejection_sampler.jl")
 #include("evosim_BP_sampler.jl")
 include("gillespie_sampler.jl")
@@ -19,7 +21,27 @@ function get_num_BCs(pop::Population)
 end
 
 function get_freq_BCs(pop::Population, total_cells::Int64)
-	return pop.N/total_cells
+	return min.(pop.N/total_cells,1)
+end
+
+function get_total_pop_size(pop::BirthDeathOneMut)
+	return sum(pop.N_WT) + sum(pop.N_mut)
+end
+
+function get_num_BCs(pop::BirthDeathOneMut)
+	return length(pop.N_WT)
+end
+
+function get_freq_BCs(pop::BirthDeathOneMut, total_cells::Int64)
+	return min.((pop.N_WT .+ pop.N_mut)/total_cells,1)
+end
+
+function get_freq_WT(pop::BirthDeathOneMut, total_cells::Int64)
+	return min.((pop.N_WT)/total_cells,1)
+end
+
+function get_freq_mut(pop::BirthDeathOneMut, total_cells::Int64)
+	return min.((pop.N_mut)/total_cells,1)
 end
 
 function reset_pop(pop::PureBirth, init_N::Vector{Int64}, params_to_set)
@@ -75,6 +97,21 @@ function reset_pop(pop::BirthDeathNegBin, init_N::Vector{Int64}, params_to_set)
 	return nothing
 end
 
+function reset_pop(pop::BirthDeathOneMut, init_N::Vector{Int64}, params_to_set)
+	pop.N_WT = init_N
+	pop.birth_rates_WT = params_to_set.birth_rates_WT
+	pop.death_rates_WT = params_to_set.death_rates_WT
+	pop.birth_rates_mut = params_to_set.birth_rates_mut
+	pop.death_rates_mut = params_to_set.death_rates_mut
+	pop.mut_times = params_to_set.mut_times
+	pop.N_mut = round.(zeros(length(pop.N_WT)))
+
+	@assert length(pop.N_WT) == length(pop.birth_rates_WT)
+	@assert length(pop.N_WT) == length(pop.death_rates_WT)
+	@assert length(pop.N_WT) == length(pop.mut_times)
+	return nothing
+end
+
 ## Other helper functions
 
 function complete_posterior(ressmc,param_names)
@@ -93,6 +130,56 @@ function compute_mode_CI(dist::Vector{Float64}, CI_width::Float64)
 	smoothed = kde(dist)
 	MAP_estimate = smoothed.x[findmax(smoothed.density)[2]]
 	return (MAP_estimate, CI[1], CI[2])
+end
+
+function compute_mode_CI_ll(dist::Vector{Float64}, CI_width::Float64, prior::Distribution)
+	CI_lower = (1-CI_width)/2.0
+	CI = quantile(dist, [CI_lower, 1-CI_lower])
+	smoothed = kde(dist)
+	max_idx = findmax(smoothed.density)[2]
+	MAP_estimate = smoothed.x[max_idx]
+	log_like = log(smoothed.density[max_idx])
+	log_like = log_like - logpdf(prior, MAP_estimate)
+	return (MAP_estimate, CI[1], CI[2], log_like)
+end
+
+function compute_mode_CI_multi(dist::Matrix{Float64}, CI_width::Float64, prior::Distribution)
+	num_dim = size(dist, 1);
+	#to_kde = [dist[:, i] for i in 1:size(dist, 2)]
+	#dims = repeat([ContinuousDim()], num_dim);
+
+	prior_ranges = [[x.a, x.b] for x in prior.v]
+	#bw = [(x[2]-x[1])/5 for x in prior_ranges]
+
+	mv_kde = kde!(dist, [std(dist[i,:])/2. for i in 1:num_dim])
+
+	lower = [x[1] for x in prior_ranges]
+	upper = [x[2] for x in prior_ranges]
+	initial_x = vec(mean(dist, dims=2))#[(x[2]-x[1])/2 for x in prior_ranges]
+
+	function to_optim(input_vec::Vector{Float64})
+		#print("\n")
+		#print(input_vec)
+		to_return = -mv_kde(input_vec[:,:])[1]
+		#print("\n")
+		#print(to_return)
+		return to_return
+	end
+
+	inner_optimizer = LBFGS()
+	MAP_estimate = optimize(to_optim, lower, upper, initial_x, Fminbox(inner_optimizer))
+	print("\n")
+	print(log(-MAP_estimate.minimum))
+	print("\n")
+	print(loglikelihood(prior, MAP_estimate.minimizer))
+	log_like = log(-MAP_estimate.minimum) - loglikelihood(prior, MAP_estimate.minimizer)
+
+	CI_lower = (1-CI_width)/2.0
+	CIs = [quantile(dist[i,:], [CI_lower, 1-CI_lower]) for i in 1:num_dim]
+	lower_CIs = [x[1] for x in CIs]
+	upper_CIs = [x[2] for x in CIs]
+
+	return (MAP_estimate.minimizer, lower_CIs, upper_CIs, log_like)
 end
 
 function sample_normal(mu::Float64, sig::Float64)
@@ -195,6 +282,41 @@ function bd_NegBin_growth(pop::BirthDeathNegBin, start_time::Int64, end_time::In
 	return nothing
 end
 
+function bd_onemut_growth(pop::BirthDeathOneMut, start_time::Int64, end_time::Int64)
+	muts_to_resolve = Vector{Vector}()
+
+	for i = 1:length(pop.mut_times)
+		if (pop.mut_times[i] >= start_time) & (pop.mut_times[i] < end_time)
+			push!(muts_to_resolve, [pop.mut_times[i], i])
+		end
+	end
+
+	if length(muts_to_resolve) > 0
+		sort_order = sortperm([x[1] for x in muts_to_resolve])
+		sorted_times = muts_to_resolve[sort_order]
+		curr_time = start_time
+		for mut in sorted_times
+			time_passed = convert(Float64, mut[1] - curr_time)
+			pop.N_WT = round.(broadcast(sample_NegBinBD_nomut, pop.N_WT, pop.birth_rates_WT, pop.death_rates_WT, time_passed))
+			pop.N_mut = round.(broadcast(sample_NegBinBD_nomut, pop.N_mut, pop.birth_rates_mut, pop.death_rates_mut, time_passed))
+			if pop.N_WT[floor(Int, mut[2])] >= 1
+				pop.N_mut[floor(Int, mut[2])] += 1
+				pop.N_WT[floor(Int, mut[2])] -= 1
+			end
+			curr_time = mut[1]
+		end
+		time_passed = convert(Float64, end_time - curr_time)
+		pop.N_WT = round.(broadcast(sample_NegBinBD_nomut, pop.N_WT, pop.birth_rates_WT, pop.death_rates_WT, time_passed))
+		pop.N_mut = round.(broadcast(sample_NegBinBD_nomut, pop.N_mut, pop.birth_rates_mut, pop.death_rates_mut, time_passed))
+	else
+		time_passed = convert(Float64, end_time - start_time)
+		pop.N_WT = round.(broadcast(sample_NegBinBD_nomut, pop.N_WT, pop.birth_rates_WT, pop.death_rates_WT, time_passed))
+		pop.N_mut = round.(broadcast(sample_NegBinBD_nomut, pop.N_mut, pop.birth_rates_mut, pop.death_rates_mut, time_passed))
+	end
+
+	return nothing
+end
+
 ## Passage functions
 # Arguments: Population, number of cells to be passaged, total number of cells at end of growth period
 # Returns: nothing, but mutates Population
@@ -206,6 +328,17 @@ end
 
 function poisson_passage(pop::Population, pass_num::Int64, growth_num::Int64)
 	pop.N = poisson_counts(pop, pass_num, growth_num)
+	return nothing
+end
+
+function poisson_passage(pop::BirthDeathOneMut, pass_num::Int64, growth_num::Int64)
+	freqs = get_freq_WT(pop, growth_num)
+	lambda_val = freqs * pass_num
+	pop.N_WT = broadcast(sample_poisson, lambda_val)
+
+	freqs = get_freq_mut(pop, growth_num)
+	lambda_val = freqs * pass_num
+	pop.N_mut = broadcast(sample_poisson, lambda_val)
 	return nothing
 end
 
@@ -241,7 +374,21 @@ end
 
 function euclidean_cost(sim_output::Matrix, ground_truth::Matrix)
 	check_cost_inputs(sim_output, ground_truth)
+	#print("\n")
+	#print((colwise(Euclidean(), ground_truth, sim_output)))
+	#print((sum(colwise(Euclidean(), ground_truth, sim_output)))^(1/2))
 	return (sum(colwise(Euclidean(), ground_truth, sim_output)))^(1/2)
+end
+
+function weighted_euclidean_cost(sim_output::Matrix, ground_truth::Matrix)
+	check_cost_inputs(sim_output, ground_truth)
+	time_weights = ones(size(sim_output))
+	#time_weights[1:3] .= 0.2
+	#time_weights[length(time_weights)-4:length(time_weights)] .= 0.5
+	#print("\n")
+	#print((colwise(Euclidean(), ground_truth, sim_output)))
+	#print((sum(colwise(Euclidean(), ground_truth, sim_output)))^(1/2))
+	return (sum(colwise(Euclidean(), ground_truth .* time_weights, sim_output .* time_weights)))^(1/2)
 end
 
 ## Simulation function (DO NOT MODIFY)
@@ -298,5 +445,7 @@ function simulate_cost(pop_template::Population, init_N::Vector{Int64}, (growth_
 	sample_filter = 0:(length(sample_nums)-1)
 	times_to_use = sample_filter[sample_nums .> 0]
 	sim_to_test = sampled_data[times_to_use,:]
+	sim_to_test = sim_to_test ./ sample_nums[times_to_use.+1]
+	true_data = true_data ./ sample_nums[times_to_use.+1]
 	return cost_fn(sim_to_test, true_data)
 end

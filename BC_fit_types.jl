@@ -57,3 +57,13 @@ mutable struct BirthDeathMut <: Population
     variances::Vector{Float64}
     samples::Dict{Int64, Int64}
 end
+
+mutable struct BirthDeathOneMut <: Population
+    N_WT::Vector{Int64}
+    N_mut::Vector{Int64}
+    birth_rates_mut::Vector{Float64}
+    birth_rates_WT::Vector{Float64}
+    death_rates_mut::Vector{Float64}
+    death_rates_WT::Vector{Float64}
+    mut_times::Vector{Float64}
+end
