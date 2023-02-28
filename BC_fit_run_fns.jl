@@ -550,7 +550,7 @@ function run_CNA_whole(CNA_file::String, clone_file::String, sampling_file::Stri
         to_return = simulate_cost(pop_template, init_N, (bd_insertclone_growth, multinomial_passage, CNA_sample, euclidean_cost), (sampling_data[!,"day"], Int.(sampling_data[!,"passaged"]), Int.(sampling_data[!,"sampled"]), Int.(sampling_data[!,"counted"])), true_data, params_to_set)
         return(to_return)
     end
-    result_smc = smc(prior, cost_fn, nparticles=100, parallel=false)
+    result_smc = smc(prior, cost_fn, nparticles=200, parallel=true)
     result_smc = [result_smc[1][x].particles for x in 1:(n_clones-1)]
     result_smc = copy(transpose(reduce(hcat, result_smc)))
     MAP_growth, lower_CI_growth, upper_CI_growth, log_like = compute_mode_CI_multi(result_smc, 0.95, prior)
