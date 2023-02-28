@@ -4,6 +4,9 @@ using DataFrames
 
 include("BC_fit_types.jl")
 include("BC_fit_sim_fns.jl")
+include("BC_fit_sample_fns.jl")
+include("BC_fit_utils.jl")
+include("BC_fit_growth_fns.jl")
 
 function run_purebirth_adjtimes(BC_file::String, sampling_file::String, out_file::String, verbose::Bool=false, prior_lim::Float64=0.0)
     BC_data = CSV.read(BC_file, DataFrame)
@@ -509,6 +512,52 @@ function run_onemut_whole(BC_file::String, sampling_file::String, out_file::Stri
         print([names(BC_data)[i], start_time, MAP_growth, lower_CI_growth, upper_CI_growth, log_like])
     end
 
+    CSV.write(out_file, results_table)
+    return nothing
+end
+
+function run_CNA_whole(CNA_file::String, clone_file::String, sampling_file::String, out_file::String, WT_growth::Float64=0.1, prior_lim::Float64=0.3)
+    CNA_data = CSV.read(CNA_file, DataFrame)
+    clone_data = CSV.read(clone_file, DataFrame)
+    sampling_data = CSV.read(sampling_file, DataFrame)
+
+    print(clone_data)
+    print(CNA_data)
+    n_clones = size(clone_data)[1]
+
+    start_time = sampling_data[1,"time"]
+    end_time = sampling_data[length(sampling_data[!, "time"]),"time"]
+
+    init_row = subset(sampling_data, :time => t -> t .== start_time)
+    start_cells = init_row[1, "passaged"]
+    start_day = init_row[1, "day"]
+
+    #true_data = Matrix(CNA_data)[2:size(CNA_data)[1],:]
+    true_data = Matrix(CNA_data)
+    clone_def = Matrix(clone_data)[:,3:(size(CNA_data)[2]+2)]
+    first_freqs = clone_data[!,"first_freqs"]
+    first_times = clone_data[!,"first_times"]
+    prior = product_distribution([Uniform(0,prior_lim) for x in 1:(n_clones-1)])
+
+    pop_template = SubcloneCNA([0], [0.0], [0.0], [0], [0.0], copy(clone_def))
+
+    init_N = zeros(n_clones)
+    init_mask = first_times .== start_day
+    init_N[(1:n_clones)[init_mask]] .= first_freqs[init_mask]
+    init_N = Int.(round.(init_N .* start_cells))
+    function cost_fn(prior_sample)
+        params_to_set = (birth_rates=[[0.0]; prior_sample] .+ WT_growth, death_rates=[0. for x in 1:(n_clones)], first_times=first_times, first_freqs=first_freqs, CNA_clones=clone_def)
+        to_return = simulate_cost(pop_template, init_N, (bd_insertclone_growth, multinomial_passage, CNA_sample, euclidean_cost), (sampling_data[!,"day"], Int.(sampling_data[!,"passaged"]), Int.(sampling_data[!,"sampled"]), Int.(sampling_data[!,"counted"])), true_data, params_to_set)
+        return(to_return)
+    end
+    result_smc = smc(prior, cost_fn, nparticles=100, parallel=false)
+    result_smc = [result_smc[1][x].particles for x in 1:(n_clones-1)]
+    result_smc = copy(transpose(reduce(hcat, result_smc)))
+    MAP_growth, lower_CI_growth, upper_CI_growth, log_like = compute_mode_CI_multi(result_smc, 0.95, prior)
+
+    results_table = [MAP_growth; lower_CI_growth; upper_CI_growth; log_like]
+    col_labels = [[string("MAP_", x) for x in 1:(n_clones-1)]; [string("lower_", x) for x in 1:(n_clones-1)]; [string("upper_", x) for x in 1:(n_clones-1)]; ["log_like"]]
+    results_table = DataFrame([[x] for x in results_table], col_labels)
     CSV.write(out_file, results_table)
     return nothing
 end

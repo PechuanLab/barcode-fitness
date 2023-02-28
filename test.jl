@@ -20,6 +20,7 @@ for donor=donors
 end
 =#
 
+#=
 parent_dir = "/Users/dve/Documents/Curtis_Lab/organoid_ECB/ECB_input_data/julia_test_mut/inputs/"
 out_dir = "/Users/dve/Documents/Curtis_Lab/organoid_ECB/ECB_input_data/julia_test_mut/outputs/"
 time_sweep = [ 12,  32,  52,  72,  92, 112, 132, 152]
@@ -38,6 +39,7 @@ for t=time_sweep
     end
   end
 end
+=#
 
 #=
 sample_name = "PC1_R1"
@@ -107,3 +109,12 @@ io = open(out_file, "w") do io
   end
 end
 =#
+
+parent_dir = "/Users/dve/Documents/Curtis_Lab/organoid_ECB/ECB_input_data/CNA_infer/"
+sample = "D1C1"
+
+CNA_file = string(parent_dir, "CNA_freqs/", sample, ".csv")
+clone_file = string(parent_dir, "CNA_subclones/", sample, ".csv")
+sampling_file = string(parent_dir, "sampling_params/",  sample, ".csv")
+out_file = string("/Users/dve/Documents/Curtis_Lab/organoid_ECB/inference_outputs/CNA_infer/", sample, ".csv")
+run_CNA_whole(CNA_file, clone_file, sampling_file, out_file)

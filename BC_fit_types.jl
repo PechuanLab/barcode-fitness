@@ -67,3 +67,16 @@ mutable struct BirthDeathOneMut <: Population
     death_rates_WT::Vector{Float64}
     mut_times::Vector{Float64}
 end
+
+mutable struct SubcloneCNA <: Population
+    N::Vector{Int64}
+    birth_rates::Vector{Float64}
+    death_rates::Vector{Float64}
+    # Times at which subclones appear. Must be in sampling times. If outside of sampling range, will be ignored
+    first_times::Vector{Int64}
+    # Fractions of new subclones at time of sampling.
+    first_freqs::Vector{Float64}
+    # n_clones x n_segs, each entry a_i,j is copy number gain/loss for clone i
+    # for segment j, with 0 being no change, log2 fold change
+    CNA_clones::Matrix
+end
