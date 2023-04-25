@@ -516,7 +516,7 @@ function run_onemut_whole(BC_file::String, sampling_file::String, out_file::Stri
     return nothing
 end
 
-function run_CNA_whole(CNA_file::String, clone_file::String, sampling_file::String, out_file::String, WT_growth::Float64=0.1, prior_lim::Float64=0.3, npart::Int64=200)
+function run_CNA_whole(CNA_file::String, clone_file::String, sampling_file::String, out_file::String; WT_growth::Float64=0.1, prior_lim::Float64=0.3, npart::Int64=200)
     CNA_data = CSV.read(CNA_file, DataFrame)
     clone_data = CSV.read(clone_file, DataFrame)
     sampling_data = CSV.read(sampling_file, DataFrame)

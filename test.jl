@@ -1,7 +1,7 @@
 
 include("/Users/dve/Documents/Curtis_Lab/organoid_ECB/fitness_inference/BC_fit_run_fns.jl")
 
-
+#=
 parent_dir = "/Users/dve/Documents/Curtis_Lab/organoid_ECB/ECB_input_data/"
 
 #donors = ["PC1", "PC3", "PC5"]
@@ -13,14 +13,14 @@ for donor=donors
   for rep=reps
     BC_file = string(parent_dir, "full_wide_data/", donor, "_", rep, "_sc.csv")
     sampling_file = string(parent_dir, "sampling_params/",  donor, "_", rep, "_smoothed_sc.csv")
-    out_file = string("/Users/dve/Documents/Curtis_Lab/organoid_ECB/inference_outputs/constant_final/", donor, "_", rep, "_sc.csv")
+    out_file = string("/Users/dve/Documents/Curtis_Lab/organoid_ECB/inference_outputs/constant_final/", donor, "_", rep, "_sc_.csv")
     run_purebirth_whole(BC_file, sampling_file, out_file, 0.35, false)
     out_file = string("/Users/dve/Documents/Curtis_Lab/organoid_ECB/inference_outputs/mut_final/", donor, "_", rep, "_sc.csv")
     run_onemut_whole(BC_file, sampling_file, out_file, 0.35, false)
   end
 end
 
-#=
+
 
 parent_dir = "/Users/dve/Documents/Curtis_Lab/organoid_ECB/ECB_input_data/julia_test_mut/inputs/"
 out_dir = "/Users/dve/Documents/Curtis_Lab/organoid_ECB/ECB_input_data/julia_test_mut/outputs/"
@@ -109,7 +109,7 @@ io = open(out_file, "w") do io
     println(io, x)
   end
 end
-
+=#
 
 parent_dir = "/Users/dve/Documents/Curtis_Lab/organoid_ECB/ECB_input_data/CNA_infer/"
 sample = "D2C1_R1"
@@ -117,6 +117,5 @@ sample = "D2C1_R1"
 CNA_file = string(parent_dir, "CNA_freqs/", sample, ".csv")
 clone_file = string(parent_dir, "CNA_subclones/", sample, ".csv")
 sampling_file = string(parent_dir, "sampling_params/",  sample, ".csv")
-out_file = string("/Users/dve/Documents/Curtis_Lab/organoid_ECB/inference_outputs/CNA_infer/", sample, ".csv")
-run_CNA_whole(CNA_file, clone_file, sampling_file, out_file)
-=#
+out_file = string("/Users/dve/Documents/Curtis_Lab/organoid_ECB/inference_outputs/CNA_infer/", sample, "_TEST.csv")
+run_CNA_whole(CNA_file, clone_file, sampling_file, out_file, WT_growth=0.15, npart=500)
