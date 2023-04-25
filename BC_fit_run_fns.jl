@@ -516,13 +516,13 @@ function run_onemut_whole(BC_file::String, sampling_file::String, out_file::Stri
     return nothing
 end
 
-function run_CNA_whole(CNA_file::String, clone_file::String, sampling_file::String, out_file::String, WT_growth::Float64=0.1, prior_lim::Float64=0.3)
+function run_CNA_whole(CNA_file::String, clone_file::String, sampling_file::String, out_file::String, WT_growth::Float64=0.1, prior_lim::Float64=0.3, npart::Int64=200)
     CNA_data = CSV.read(CNA_file, DataFrame)
     clone_data = CSV.read(clone_file, DataFrame)
     sampling_data = CSV.read(sampling_file, DataFrame)
 
-    print(clone_data)
-    print(CNA_data)
+    #print(clone_data)
+    #print(CNA_data)
     n_clones = size(clone_data)[1]
 
     start_time = sampling_data[1,"time"]
@@ -545,12 +545,13 @@ function run_CNA_whole(CNA_file::String, clone_file::String, sampling_file::Stri
     init_mask = first_times .== start_day
     init_N[(1:n_clones)[init_mask]] .= first_freqs[init_mask]
     init_N = Int.(round.(init_N .* start_cells))
+    #print(init_N)
     function cost_fn(prior_sample)
         params_to_set = (birth_rates=[[0.0]; prior_sample] .+ WT_growth, death_rates=[0. for x in 1:(n_clones)], first_times=first_times, first_freqs=first_freqs, CNA_clones=clone_def)
         to_return = simulate_cost(pop_template, init_N, (bd_insertclone_growth, multinomial_passage, CNA_sample, euclidean_cost), (sampling_data[!,"day"], Int.(sampling_data[!,"passaged"]), Int.(sampling_data[!,"sampled"]), Int.(sampling_data[!,"counted"])), true_data, params_to_set)
         return(to_return)
     end
-    result_smc = smc(prior, cost_fn, nparticles=200, parallel=true)
+    result_smc = smc(prior, cost_fn, nparticles=npart, parallel=true)
     result_smc = [result_smc[1][x].particles for x in 1:(n_clones-1)]
     result_smc = copy(transpose(reduce(hcat, result_smc)))
     MAP_growth, lower_CI_growth, upper_CI_growth, log_like = compute_mode_CI_multi(result_smc, 0.95, prior)
