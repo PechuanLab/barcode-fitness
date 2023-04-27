@@ -197,12 +197,11 @@ function compute_mode_CI_ll(dist::Vector{Float64}, CI_width::Float64, prior::Dis
 	return (MAP_estimate, CI[1], CI[2], log_like)
 end
 
-function compute_mode_CI_multi(dist::Matrix{Float64}, CI_width::Float64, prior::Distribution)
+function compute_mode_CI_multi(dist::Matrix{Float64}, CI_width::Float64, prior::Distribution, prior_ranges)
 	num_dim = size(dist, 1);
 	#to_kde = [dist[:, i] for i in 1:size(dist, 2)]
 	#dims = repeat([ContinuousDim()], num_dim);
 
-	prior_ranges = [[x.a, x.b] for x in prior.v]
 	#bw = [(x[2]-x[1])/5 for x in prior_ranges]
 
 	mv_kde = kde!(dist, [std(dist[i,:])/2. for i in 1:num_dim])

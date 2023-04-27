@@ -115,7 +115,7 @@ parent_dir = "/Users/dve/Documents/Curtis_Lab/organoid_ECB/ECB_input_data/CNA_in
 sample = "D2C1_R1"
 
 CNA_file = string(parent_dir, "CNA_freqs/", sample, ".csv")
-clone_file = string(parent_dir, "CNA_subclones/", sample, ".csv")
+clone_file = string(parent_dir, "CNA_subclones/", sample, "_startfreqs.csv")
 sampling_file = string(parent_dir, "sampling_params/",  sample, ".csv")
-out_file = string("/Users/dve/Documents/Curtis_Lab/organoid_ECB/inference_outputs/CNA_infer/", sample, "_TEST.csv")
-run_CNA_whole(CNA_file, clone_file, sampling_file, out_file, WT_growth=0.15, npart=500)
+out_file = string("/Users/dve/Documents/Curtis_Lab/organoid_ECB/inference_outputs/CNA_infer/", sample, "_startfreqs.csv")
+run_CNA_startfreqs(CNA_file, clone_file, sampling_file, out_file, npart=200)

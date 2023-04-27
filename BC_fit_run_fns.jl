@@ -506,7 +506,8 @@ function run_onemut_whole(BC_file::String, sampling_file::String, out_file::Stri
         result_smc = [result_smc[1][1].particles, result_smc[1][2].particles, result_smc[1][3].particles]
         result_smc = copy(transpose(reduce(hcat, result_smc)))
         #return result_smc
-        MAP_growth, lower_CI_growth, upper_CI_growth, log_like = compute_mode_CI_multi(result_smc, 0.95, prior)
+        prior_ranges = [[x.a, x.b] for x in prior.v]
+        MAP_growth, lower_CI_growth, upper_CI_growth, log_like = compute_mode_CI_multi(result_smc, 0.95, prior, prior_ranges)
         push!(results_table, [names(BC_data)[i], start_time, MAP_growth[1], MAP_growth[2], MAP_growth[3], lower_CI_growth[1], lower_CI_growth[2], lower_CI_growth[3], upper_CI_growth[1], upper_CI_growth[2], upper_CI_growth[3], log_like])
         print("\n")
         print([names(BC_data)[i], start_time, MAP_growth, lower_CI_growth, upper_CI_growth, log_like])
@@ -554,10 +555,58 @@ function run_CNA_whole(CNA_file::String, clone_file::String, sampling_file::Stri
     result_smc = smc(prior, cost_fn, nparticles=npart, parallel=true)
     result_smc = [result_smc[1][x].particles for x in 1:(n_clones-1)]
     result_smc = copy(transpose(reduce(hcat, result_smc)))
-    MAP_growth, lower_CI_growth, upper_CI_growth, log_like = compute_mode_CI_multi(result_smc, 0.95, prior)
+    prior_ranges = [[x.a, x.b] for x in prior.v]
+    MAP_growth, lower_CI_growth, upper_CI_growth, log_like = compute_mode_CI_multi(result_smc, 0.95, prior, prior_ranges)
 
     results_table = [MAP_growth; lower_CI_growth; upper_CI_growth; log_like]
     col_labels = [[string("MAP_", x) for x in 1:(n_clones-1)]; [string("lower_", x) for x in 1:(n_clones-1)]; [string("upper_", x) for x in 1:(n_clones-1)]; ["log_like"]]
+    results_table = DataFrame([[x] for x in results_table], col_labels)
+    CSV.write(out_file, results_table)
+    return nothing
+end
+
+function run_CNA_startfreqs(CNA_file::String, clone_file::String, sampling_file::String, out_file::String; npart::Int64=200)
+    CNA_data = CSV.read(CNA_file, DataFrame)
+    clone_data = CSV.read(clone_file, DataFrame)
+    sampling_data = CSV.read(sampling_file, DataFrame)
+
+    #print(clone_data)
+    #print(CNA_data)
+    n_clones = size(clone_data)[1]
+
+    start_time = sampling_data[1,"time"]
+    end_time = sampling_data[length(sampling_data[!, "time"]),"time"]
+
+    init_row = subset(sampling_data, :time => t -> t .== start_time)
+    start_cells = init_row[1, "passaged"]
+    start_day = init_row[1, "day"]
+    end_day = sampling_data[length(sampling_data[!, "time"]),"day"]
+
+    #true_data = Matrix(CNA_data)[2:size(CNA_data)[1],:]
+    true_data = Matrix(CNA_data)
+    clone_def = Matrix(clone_data)[:,2:(size(CNA_data)[2]+1)]
+    fitnesses = clone_data[!,"fit"]
+    #prior = Dirichlet(n_clones, 1)
+    alpha = ones(n_clones)
+    alpha[2:n_clones] .= 0.1
+    prior = Dirichlet(alpha)
+
+    pop_template = SubcloneCNA([0], [0.0], [0.0], [0], [0.0], copy(clone_def))
+
+    function cost_fn(prior_sample)
+        init_N = Int.(round.(prior_sample .* start_cells))
+        params_to_set = (birth_rates=fitnesses, death_rates=zeros(n_clones), first_times=[end_day for x in 1:(n_clones)], first_freqs=zeros(n_clones), CNA_clones=clone_def)
+        to_return = simulate_cost(pop_template, init_N, (bd_insertclone_growth, multinomial_passage, CNA_sample, euclidean_cost), (sampling_data[!,"day"], Int.(sampling_data[!,"passaged"]), Int.(sampling_data[!,"sampled"]), Int.(sampling_data[!,"counted"])), true_data, params_to_set)
+        return(to_return)
+    end
+    result_smc = smc(prior, cost_fn, nparticles=npart, parallel=true)
+    result_smc = [result_smc[1][x].particles for x in 1:(n_clones)]
+    result_smc = copy(transpose(reduce(hcat, result_smc)))
+    prior_ranges = [[0., 1.] for x in 1:n_clones]
+    MAP_growth, lower_CI_growth, upper_CI_growth, log_like = compute_mode_CI_multi(result_smc, 0.95, prior, prior_ranges)
+
+    results_table = [MAP_growth; lower_CI_growth; upper_CI_growth; log_like]
+    col_labels = [[string("MAP_", x) for x in 1:(n_clones)]; [string("lower_", x) for x in 1:(n_clones)]; [string("upper_", x) for x in 1:(n_clones)]; ["log_like"]]
     results_table = DataFrame([[x] for x in results_table], col_labels)
     CSV.write(out_file, results_table)
     return nothing
